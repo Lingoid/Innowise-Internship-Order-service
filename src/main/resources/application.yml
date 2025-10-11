@@ -10,3 +10,13 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/main-changelog.yml
     enabled: true
+
+userService:
+  url: ${USER_SERVICE_URL}
+
+server:
+  port: 8082
+
+auth:
+  service:
+    url: ${VALIDATE_TOKEN_REQUEST_URL}
