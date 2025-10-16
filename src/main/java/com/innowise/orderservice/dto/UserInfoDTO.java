@@ -1,10 +1,13 @@
 package com.innowise.orderservice.dto;
 
-import lombok.Data;
+import lombok.*;
 
 import java.time.LocalDate;
 
-@Data
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class UserInfoDTO {
     private Long id;
     private String name;
