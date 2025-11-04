@@ -4,6 +4,7 @@ import com.innowise.orderservice.dto.OrderDTO;
 import com.innowise.orderservice.dto.OrderResponseDTO;
 import com.innowise.orderservice.dto.UserInfoDTO;
 import com.innowise.orderservice.integration.UserRequest;
+import com.innowise.orderservice.kafka.OrderProducer;
 import com.innowise.orderservice.mapper.ItemMapper;
 import com.innowise.orderservice.mapper.OrderMapper;
 import com.innowise.orderservice.model.Item;
@@ -11,30 +12,31 @@ import com.innowise.orderservice.model.Order;
 import com.innowise.orderservice.repository.OrderRepository;
 import com.innowise.orderservice.util.OrderNotFoundException;
 import com.innowise.orderservice.util.UserIdMismatchException;
-import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
+
 
 @Service
+@RequiredArgsConstructor
 public class OrderService {
+
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final ItemService itemService;
     private final UserRequest userRequest;
     private final ItemMapper itemMapper;
+    private final OrderEventService orderEventService;
 
-    public OrderService(OrderRepository orderRepository, OrderMapper orderMapper, ItemService itemService, UserRequest userRequest, ItemMapper itemMapper) {
-        this.orderRepository = orderRepository;
-        this.orderMapper = orderMapper;
-        this.itemService = itemService;
-        this.userRequest = userRequest;
-        this.itemMapper = itemMapper;
-    }
 
     public OrderDTO createOrder(OrderDTO orderDTO) {
         Order order = orderMapper.toEntity(orderDTO);
+
+        if (order.getStatus() == null || order.getStatus().isBlank()) {
+            order.setStatus("PENDING");
+        }
 
         List<Item> savedItems = orderDTO.getOrderItems().stream()
                 .map(oi -> itemService.createItem(
@@ -53,9 +55,12 @@ public class OrderService {
 
         OrderDTO result = orderMapper.fromEntity(savedOrder);
         result.setUserEmail(orderDTO.getUserEmail());
+
+        orderEventService.sendCreateOrderEvent(result);
         return result;
     }
 
+    @Transactional(readOnly = true)
     public OrderResponseDTO getOrderById(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(OrderNotFoundException::new);
@@ -69,6 +74,7 @@ public class OrderService {
         return new OrderResponseDTO(orderDTO, userInfo);
     }
 
+    @Transactional(readOnly = true)
     public List<OrderResponseDTO> getOrdersByIds(List<Long> ids) {
         List<OrderDTO> orders = orderRepository.findAllById(ids)
                 .stream()
@@ -83,6 +89,7 @@ public class OrderService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<OrderResponseDTO> getOrdersByStatuses(List<String> statuses) {
         List<OrderDTO> orders = orderRepository.findByStatusIn(statuses)
                 .stream()
@@ -138,8 +145,18 @@ public class OrderService {
 
     @Transactional
     public void deleteOrder(Long id) {
-        Optional.ofNullable(orderRepository.findById(id)
-                .orElseThrow(OrderNotFoundException::new));
-        orderRepository.deleteById(id);
+        Order order = orderRepository.findById(id)
+                .orElseThrow(OrderNotFoundException::new);
+        orderRepository.delete(order);
+    }
+
+    public void updateOrderStatus(Long orderId, String status) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(OrderNotFoundException::new);
+
+        order.setStatus(status);
+        orderRepository.save(order);
+
+
     }
 }

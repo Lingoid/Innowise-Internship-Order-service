@@ -11,6 +11,14 @@ spring:
     change-log: classpath:db/changelog/main-changelog.yml
     enabled: true
 
+  kafka:
+    bootstrap-servers: ${BROKER_ADDRESS}
+    consumer:
+      group-id: ${GROUP}
+    topics:
+      create-order: ${CREATE_ORDER}
+      create-payment: ${CREATE_PAYMENT}
+
 userService:
   url: ${USER_SERVICE_URL}
 
